@@ -36,6 +36,7 @@
   --ai: #8fa2ff; --sun: #f7c650; --win: #4cc48c; --lose: #ff7a6b; --draw: #d8c56a;
   --line: #2d3460; color-scheme: dark;
 }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--body);
@@ -325,6 +326,10 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
       msg(/Invalid login/i.test(m) ? "メールアドレスかパスワードが違います。"
         : /not confirmed/i.test(m) ? "確認メールのリンクを押してから、もう一度ログインしてください。"
         : /already registered/i.test(m) ? "このメールアドレスは登録済みです。ログインしてください。"
+        : error.code === "email_address_invalid" || /is invalid/i.test(m) ? "このメールアドレスは使えません。実際に使っているメールアドレスを入れてください。"
+        : /not authorized/i.test(m) ? "確認メールを送れませんでした。しばらくしてからもう一度試してください。"
+        : error.status === 429 || /rate limit/i.test(m) ? "短時間に試しすぎました。少し待ってからもう一度試してください。"
+        : /Password should be/i.test(m) ? "パスワードは6文字以上にしてください。"
         : "うまくいきませんでした: " + m, true);
       return;
     }
