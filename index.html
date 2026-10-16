@@ -96,6 +96,20 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
 .log li.draw { border-color: var(--draw); color: var(--draw); }
 .log p { margin: 0; font-size: .85rem; color: var(--muted); }
 
+.account { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: .88rem; }
+.account p { margin: 0; color: var(--muted); }
+.account form { display: flex; flex-wrap: wrap; gap: 8px; }
+.account input { flex: 1 1 160px; min-width: 0; font: inherit; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+.account input:focus-visible, .account button:focus-visible, .reset:focus-visible { outline: 3px solid var(--sun); outline-offset: 1px; }
+.account .btns { display: flex; gap: 8px; }
+.account button { font: inherit; font-weight: 700; cursor: pointer; border-radius: 10px; padding: 7px 14px; border: 1px solid var(--ai); background: var(--ai); color: var(--paper); }
+.account button.ghost { background: none; color: var(--ai); }
+.account button:disabled { opacity: .5; cursor: default; }
+.account .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.account .who { color: var(--ink); font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.account .msg { color: var(--ai); min-height: 1.2em; }
+.account .msg.err { color: var(--lose); }
+
 @media (max-width: 400px) { .hand { font-size: 3.8rem; height: 4.2rem; } .call { font-size: 1.8rem; } }
 @media (prefers-reduced-motion: reduce) { .shake .hand, .pop { animation: none !important; } .pick { transition: none; } }
 </style>
@@ -107,6 +121,25 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
     <h1>じゃんけん道場</h1>
     <button class="reset" id="reset" type="button">記録をリセット</button>
   </header>
+
+  <section class="account" aria-label="アカウント">
+    <div id="loggedOut">
+      <p>ログインすると、記録がクラウドに保存されて別の端末でも見られます。</p>
+      <form id="authForm">
+        <input id="email" type="email" placeholder="メールアドレス" autocomplete="email" required>
+        <input id="password" type="password" placeholder="パスワード（6文字以上）" autocomplete="current-password" minlength="6" required>
+        <div class="btns">
+          <button type="submit" id="loginBtn">ログイン</button>
+          <button type="button" id="signupBtn" class="ghost">新規登録</button>
+        </div>
+      </form>
+    </div>
+    <div id="loggedIn" class="row" hidden>
+      <span>☁️ <span class="who" id="who"></span> の記録を保存中</span>
+      <button type="button" id="logoutBtn" class="ghost">ログアウト</button>
+    </div>
+    <p class="msg" id="authMsg"></p>
+  </section>
 
   <section class="board" aria-label="成績">
     <div class="w"><small>勝ち</small><b id="sW">0</b></div>
@@ -137,8 +170,14 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
   </section>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 (() => {
+  const SUPABASE_URL = "https://zmndjbhacbwuktwsbuaq.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_5B0xHvZo8UtZRoAJ7PWCuQ_v5NTTEXN";
+  const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+  let user = null;
+
   const HANDS = [
     { e: "✊", n: "グー" },
     { e: "✌️", n: "チョキ" },
@@ -198,6 +237,7 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
     else if (r === 2) { st.l++; st.streak = 0; }
     else st.d++;
     save(); render();
+    cloudSaveRound({ y, c, r });
 
     call.className = "call " + ["draw", "win", "lose"][r];
     call.textContent = ["あいこ！", "勝ち！", "負け…"][r];
@@ -218,10 +258,95 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
     if (busy) return;
     st = { w: 0, l: 0, d: 0, streak: 0, best: 0, log: [] }; aiko = false;
     save(); render();
+    cloudReset();
     $("call").className = "call"; $("call").textContent = "さあ、勝負！";
     $("sub").textContent = "記録をリセットしました";
     document.querySelectorAll(".pick").forEach(b => b.classList.remove("chosen"));
   });
+
+  // ---- Supabase クラウド保存 ----
+  const msg = (t, err = false) => { const m = $("authMsg"); m.textContent = t; m.classList.toggle("err", err); };
+  const statsRow = () => ({ user_id: user.id, wins: st.w, losses: st.l, draws: st.d, streak: st.streak, best_streak: st.best, updated_at: new Date().toISOString() });
+
+  async function cloudSaveRound(round) {
+    if (!sb || !user) return;
+    const [a, b] = await Promise.all([
+      sb.from("janken_rounds").insert({ you: round.y, cpu: round.c, result: round.r }),
+      sb.from("janken_stats").upsert(statsRow()),
+    ]);
+    if (a.error || b.error) msg("クラウドに保存できませんでした。通信を確認してください。", true);
+  }
+
+  async function cloudReset() {
+    if (!sb || !user) return;
+    const [a, b] = await Promise.all([
+      sb.from("janken_rounds").delete().eq("user_id", user.id),
+      sb.from("janken_stats").upsert(statsRow()),
+    ]);
+    msg(a.error || b.error ? "クラウドの記録を消せませんでした。" : "クラウドの記録もリセットしました", !!(a.error || b.error));
+  }
+
+  // ログイン時: クラウドに記録があれば読み込む。なければ今の記録を最初の記録として保存。
+  async function cloudLoad() {
+    const { data, error } = await sb.from("janken_stats").select("*").maybeSingle();
+    if (error) { msg("記録を読み込めませんでした。", true); return; }
+    if (!data) {
+      await sb.from("janken_stats").upsert(statsRow());
+      if (st.log.length) await sb.from("janken_rounds").insert(st.log.map(r => ({ you: r.y, cpu: r.c, result: r.r })));
+      msg("この端末の記録をクラウドに保存しました");
+      return;
+    }
+    const { data: rounds } = await sb.from("janken_rounds").select("you,cpu,result").order("played_at", { ascending: false }).limit(50);
+    st = {
+      w: data.wins, l: data.losses, d: data.draws, streak: data.streak, best: data.best_streak,
+      log: (rounds || []).reverse().map(r => ({ y: r.you, c: r.cpu, r: r.result })),
+    };
+    save(); render();
+    msg("クラウドの記録を読み込みました");
+  }
+
+  function showAuth() {
+    $("loggedOut").hidden = !!user;
+    $("loggedIn").hidden = !user;
+    $("who").textContent = user ? user.email : "";
+  }
+
+  async function auth(kind) {
+    const email = $("email").value.trim(), password = $("password").value;
+    if (!email || password.length < 6) { msg("メールアドレスと6文字以上のパスワードを入れてください。", true); return; }
+    $("loginBtn").disabled = $("signupBtn").disabled = true;
+    msg(kind === "login" ? "ログイン中…" : "登録中…");
+    const { data, error } = kind === "login"
+      ? await sb.auth.signInWithPassword({ email, password })
+      : await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.href.split("#")[0] } });
+    $("loginBtn").disabled = $("signupBtn").disabled = false;
+    if (error) {
+      const m = error.message || "";
+      msg(/Invalid login/i.test(m) ? "メールアドレスかパスワードが違います。"
+        : /not confirmed/i.test(m) ? "確認メールのリンクを押してから、もう一度ログインしてください。"
+        : /already registered/i.test(m) ? "このメールアドレスは登録済みです。ログインしてください。"
+        : "うまくいきませんでした: " + m, true);
+      return;
+    }
+    if (kind === "signup" && !data.session) msg("確認メールを送りました。メールのリンクを押してから、ログインしてください。");
+    $("password").value = "";
+  }
+
+  if (sb) {
+    $("authForm").addEventListener("submit", e => { e.preventDefault(); auth("login"); });
+    $("signupBtn").addEventListener("click", () => auth("signup"));
+    $("logoutBtn").addEventListener("click", async () => { await sb.auth.signOut(); msg("ログアウトしました。記録はこの端末にも残っています。"); });
+    sb.auth.onAuthStateChange((event, session) => {
+      const was = user && user.id;
+      user = session ? session.user : null;
+      showAuth();
+      if (user && user.id !== was) setTimeout(cloudLoad, 0);
+    });
+  } else {
+    $("loggedOut").hidden = true;
+    msg("クラウド保存を読み込めませんでした。記録はこの端末に保存されます。", true);
+  }
+
   render();
 })();
 </script>
