@@ -111,6 +111,49 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
 .account .msg { color: var(--ai); min-height: 1.2em; }
 .account .msg.err { color: var(--lose); }
 
+.tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
+.tab { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px; padding: 8px 6px; background: none; color: var(--muted); }
+.tab[aria-selected="true"] { background: var(--ai); color: var(--paper); }
+.tab:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.mode { display: flex; flex-direction: column; gap: 18px; }
+
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 20px; padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; }
+.panel h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.3rem; letter-spacing: .04em; }
+.panel p { margin: 0; color: var(--muted); font-size: .9rem; }
+.label { font-size: .78rem; color: var(--muted); letter-spacing: .1em; font-weight: 700; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.seg button { font: inherit; font-weight: 700; cursor: pointer; padding: 10px; border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); }
+.seg button[aria-pressed="true"] { border-color: var(--ai); color: var(--ai); background: color-mix(in srgb, var(--ai) 10%, var(--paper)); }
+.names { display: grid; gap: 8px; }
+.names label { display: grid; grid-template-columns: 4.5em 1fr; align-items: center; gap: 8px; font-size: .88rem; color: var(--muted); }
+.names input { font: inherit; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); }
+.big { font: inherit; font-weight: 700; font-size: 1.05rem; cursor: pointer; border-radius: 14px; padding: 12px 16px; border: 2px solid var(--ai); background: var(--ai); color: var(--paper); }
+.big.ghost { background: none; color: var(--ai); }
+.big:focus-visible, .seg button:focus-visible, .names input:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.actions .big { flex: 1 1 10em; }
+
+.turn { text-align: center; align-items: center; }
+.turn .who-big { font-family: var(--display); font-size: 1.8rem; color: var(--ai); overflow-wrap: anywhere; }
+.dots { display: flex; gap: 6px; justify-content: center; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.dots i.done { background: var(--ai); }
+.dots i.now { background: var(--sun); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.card { border: 2px solid var(--line); border-radius: 16px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--bg); }
+.card .name { font-weight: 700; font-size: .9rem; overflow-wrap: anywhere; text-align: center; }
+.card .hand { font-size: 3rem; height: 3.4rem; }
+.card .tag { font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.card.win { border-color: var(--win); } .card.win .tag { color: var(--win); }
+.card.lose { opacity: .55; } .card.lose .tag { color: var(--lose); }
+.card.draw .tag { color: var(--draw); }
+.card.out { opacity: .35; }
+.reveal .call { font-size: 2rem; }
+.champ { font-family: var(--display); font-size: 1.6rem; color: var(--win); text-align: center; overflow-wrap: anywhere; }
+.log .mlog { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: .85rem; }
+.mlog li { padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); overflow-wrap: anywhere; }
+
 @media (max-width: 400px) { .hand { font-size: 3.8rem; height: 4.2rem; } .call { font-size: 1.8rem; } }
 @media (prefers-reduced-motion: reduce) { .shake .hand, .pop { animation: none !important; } .pick { transition: none; } }
 </style>
@@ -123,6 +166,12 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
     <button class="reset" id="reset" type="button">記録をリセット</button>
   </header>
 
+  <div class="tabs" role="tablist" aria-label="遊び方">
+    <button class="tab" id="tabCpu" type="button" role="tab" aria-selected="true" aria-controls="cpuMode">コンピューターと</button>
+    <button class="tab" id="tabMulti" type="button" role="tab" aria-selected="false" aria-controls="multiMode">みんなで（2〜4人）</button>
+  </div>
+
+  <div class="mode" id="cpuMode" role="tabpanel">
   <section class="account" aria-label="アカウント">
     <div id="loggedOut">
       <p>ログインすると、記録がクラウドに保存されて別の端末でも見られます。</p>
@@ -169,6 +218,59 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
     <ol id="log"></ol>
     <p id="empty">まだ勝負していません。</p>
   </section>
+  </div>
+
+  <div class="mode" id="multiMode" role="tabpanel" hidden>
+    <!-- 1. メンバー決め -->
+    <section class="panel" id="mSetup">
+      <h2>みんなでじゃんけん</h2>
+      <p>1台の端末を順番に回して、1人ずつ手を選びます。最後の人が選んだら一斉に発表。勝った人だけで続けて、最後の1人が優勝です。</p>
+      <span class="label">人数</span>
+      <div class="seg" id="mCount">
+        <button type="button" data-n="2" aria-pressed="true">2人</button>
+        <button type="button" data-n="3" aria-pressed="false">3人</button>
+        <button type="button" data-n="4" aria-pressed="false">4人</button>
+      </div>
+      <span class="label">名前</span>
+      <div class="names" id="mNames"></div>
+      <button class="big" type="button" id="mStart">はじめる</button>
+    </section>
+
+    <!-- 2. 端末を渡す画面（前の人の手を隠す） -->
+    <section class="panel turn" id="mHandoff" hidden>
+      <div class="dots" id="mDots1"></div>
+      <span class="label" id="mRoundLabel"></span>
+      <div class="who-big" id="mHandoffName"></div>
+      <p>ほかの人は画面を見ないでね。</p>
+      <button class="big" type="button" id="mReady">準備OK</button>
+    </section>
+
+    <!-- 3. 手を選ぶ画面 -->
+    <section class="panel turn" id="mChoose" hidden>
+      <div class="dots" id="mDots2"></div>
+      <div class="who-big" id="mChooseName"></div>
+      <p>出す手を選んでください。</p>
+      <div class="picks" style="width:100%">
+        <button class="pick mpick" type="button" data-h="0"><span>✊</span><strong>グー</strong></button>
+        <button class="pick mpick" type="button" data-h="1"><span>✌️</span><strong>チョキ</strong></button>
+        <button class="pick mpick" type="button" data-h="2"><span>✋</span><strong>パー</strong></button>
+      </div>
+    </section>
+
+    <!-- 4. 発表 -->
+    <section class="panel reveal" id="mReveal" hidden aria-live="polite">
+      <div class="call" id="mCall"></div>
+      <div class="cards" id="mCards"></div>
+      <div class="champ" id="mChamp" hidden></div>
+      <div class="sub" id="mSub"></div>
+      <div class="actions" id="mActions"></div>
+    </section>
+
+    <section class="log" id="mLogBox" hidden>
+      <h2>この試合の流れ</h2>
+      <ol class="mlog" id="mLog"></ol>
+    </section>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -215,7 +317,7 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
   async function play(y) {
     if (busy) return;
     busy = true;
-    document.querySelectorAll(".pick").forEach(b => { b.disabled = true; b.classList.toggle("chosen", +b.dataset.h === y); });
+    document.querySelectorAll("#cpuMode .pick").forEach(b => { b.disabled = true; b.classList.toggle("chosen", +b.dataset.h === y); });
     const arena = $("arena"), call = $("call"), sub = $("sub");
     call.className = "call"; sub.textContent = "";
     $("cpuHand").textContent = "✊"; $("youHand").textContent = "✊";
@@ -249,12 +351,15 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
       : `あなた ${HANDS[y].n} ／ あいて ${HANDS[c].n}　勝率 ${rate}%・最高 ${st.best} 連勝`;
     aiko = r === 0;
 
-    document.querySelectorAll(".pick").forEach(b => b.disabled = false);
+    document.querySelectorAll("#cpuMode .pick").forEach(b => b.disabled = false);
     busy = false;
   }
 
-  document.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => play(+b.dataset.h)));
-  addEventListener("keydown", e => { if (["1", "2", "3"].includes(e.key)) play(+e.key - 1); });
+  document.querySelectorAll("#cpuMode .pick").forEach(b => b.addEventListener("click", () => play(+b.dataset.h)));
+  addEventListener("keydown", e => {
+    if (e.target.closest && e.target.closest("input")) return;
+    if (!$("cpuMode").hidden && ["1", "2", "3"].includes(e.key)) play(+e.key - 1);
+  });
   $("reset").addEventListener("click", () => {
     if (busy) return;
     st = { w: 0, l: 0, d: 0, streak: 0, best: 0, log: [] }; aiko = false;
@@ -262,7 +367,7 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
     cloudReset();
     $("call").className = "call"; $("call").textContent = "さあ、勝負！";
     $("sub").textContent = "記録をリセットしました";
-    document.querySelectorAll(".pick").forEach(b => b.classList.remove("chosen"));
+    document.querySelectorAll("#cpuMode .pick").forEach(b => b.classList.remove("chosen"));
   });
 
   // ---- Supabase クラウド保存 ----
@@ -353,6 +458,195 @@ h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0
   }
 
   render();
+})();
+
+// ---- みんなで（2〜4人）モード ----
+(() => {
+  const HANDS = [{ e: "✊", n: "グー" }, { e: "✌️", n: "チョキ" }, { e: "✋", n: "パー" }];
+  const $ = id => document.getElementById(id);
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = ms => new Promise(r => setTimeout(r, reduce ? ms / 4 : ms));
+  const NAMES_KEY = "janken-dojo-names";
+
+  // タブ切り替え
+  function setMode(multi) {
+    $("cpuMode").hidden = multi;
+    $("multiMode").hidden = !multi;
+    $("reset").hidden = multi;
+    $("tabCpu").setAttribute("aria-selected", String(!multi));
+    $("tabMulti").setAttribute("aria-selected", String(multi));
+  }
+  $("tabCpu").addEventListener("click", () => setMode(false));
+  $("tabMulti").addEventListener("click", () => setMode(true));
+
+  // メンバー決め
+  let count = 2;
+  let savedNames = [];
+  try { savedNames = JSON.parse(localStorage.getItem(NAMES_KEY)) || []; } catch {}
+
+  function renderNames() {
+    const box = $("mNames");
+    const current = [...box.querySelectorAll("input")].map(i => i.value);
+    box.innerHTML = "";
+    for (let i = 0; i < count; i++) {
+      const label = document.createElement("label");
+      label.textContent = `${i + 1}人目`;
+      const input = document.createElement("input");
+      input.id = `mName${i}`;
+      input.maxLength = 12;
+      input.placeholder = `プレイヤー${i + 1}`;
+      input.value = current[i] ?? savedNames[i] ?? "";
+      label.appendChild(input);
+      box.appendChild(label);
+    }
+    $("mCount").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.n === count)));
+  }
+  $("mCount").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    count = +b.dataset.n; renderNames();
+  });
+
+  // 試合の状態
+  let players = [];   // 名前の配列
+  let alive = [];     // 勝ち残っている人の番号
+  let turn = 0;       // alive の何番目の人が選ぶ番か
+  let picks = {};     // 番号 → 手
+  let round = 0;
+  let aiko = false;
+
+  const show = id => ["mSetup", "mHandoff", "mChoose", "mReveal"].forEach(s => $(s).hidden = s !== id);
+
+  function dots(el) {
+    el.innerHTML = "";
+    alive.forEach((_, i) => {
+      const d = document.createElement("i");
+      d.className = i < turn ? "done" : i === turn ? "now" : "";
+      el.appendChild(d);
+    });
+  }
+
+  function startMatch() {
+    players = [...$("mNames").querySelectorAll("input")].map((inp, i) => inp.value.trim() || `プレイヤー${i + 1}`);
+    try { localStorage.setItem(NAMES_KEY, JSON.stringify(players)); } catch {}
+    alive = players.map((_, i) => i);
+    round = 0; aiko = false;
+    $("mLog").innerHTML = ""; $("mLogBox").hidden = true;
+    startRound();
+  }
+
+  function startRound() {
+    round++; turn = 0; picks = {};
+    handoff();
+  }
+
+  function handoff() {
+    const p = alive[turn];
+    dots($("mDots1"));
+    $("mRoundLabel").textContent = aiko ? `${round}回目（あいこでしょ）` : `${round}回目`;
+    $("mHandoffName").textContent = `${players[p]}さんの番`;
+    $("mReady").textContent = turn === 0 ? "準備OK" : `${players[p]}さん、準備OK`;
+    show("mHandoff");
+    $("mReady").focus();
+  }
+
+  function choose() {
+    dots($("mDots2"));
+    $("mChooseName").textContent = `${players[alive[turn]]}さん`;
+    show("mChoose");
+  }
+
+  function pick(h) {
+    picks[alive[turn]] = h;
+    turn++;
+    if (turn < alive.length) handoff();
+    else reveal();
+  }
+
+  // 3種類そろう or 全員同じ → あいこ。2種類なら勝つ手を出した人が勝ち。
+  function winningHand(hands) {
+    const kinds = [...new Set(hands)];
+    if (kinds.length !== 2) return null;
+    const [a, b] = kinds;
+    return (b - a + 3) % 3 === 1 ? a : b;
+  }
+
+  function card(p, cls, tag, hand) {
+    const c = document.createElement("div");
+    c.className = "card " + cls;
+    c.innerHTML = `<span class="name"></span><div class="hand"></div>${tag ? '<span class="tag"></span>' : ""}`;
+    c.querySelector(".name").textContent = players[p];
+    c.querySelector(".hand").textContent = hand == null ? "–" : HANDS[hand].e;
+    if (tag) c.querySelector(".tag").textContent = tag;
+    return c;
+  }
+
+  function button(text, fn, ghost) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "big" + (ghost ? " ghost" : ""); b.textContent = text;
+    b.addEventListener("click", fn);
+    return b;
+  }
+
+  async function reveal() {
+    show("mReveal");
+    const call = $("mCall"), cards = $("mCards"), sub = $("mSub"), actions = $("mActions");
+    $("mChamp").hidden = true; sub.textContent = ""; actions.innerHTML = "";
+    call.className = "call";
+    cards.innerHTML = "";
+    alive.forEach(p => cards.appendChild(card(p, "", "", 0)));
+    cards.classList.add("shake");
+    const words = aiko ? ["あい", "こで", "しょ！"] : ["じゃん", "けん", "ぽん！"];
+    for (let i = 0; i < 2; i++) { call.textContent = words[i]; await wait(380); }
+    cards.classList.remove("shake");
+    call.textContent = words[2];
+
+    const hands = alive.map(p => picks[p]);
+    const w = winningHand(hands);
+    const winners = w == null ? alive : alive.filter(p => picks[p] === w);
+
+    cards.innerHTML = "";
+    players.forEach((_, p) => {
+      if (!alive.includes(p)) { cards.appendChild(card(p, "out", "敗退", null)); return; }
+      const cls = w == null ? "draw" : picks[p] === w ? "win" : "lose";
+      const tag = w == null ? "あいこ" : picks[p] === w ? "勝ち" : "負け";
+      const c = card(p, cls, tag, picks[p]);
+      c.querySelector(".hand").classList.add("pop");
+      cards.appendChild(c);
+    });
+    await wait(450);
+
+    // 流れを記録
+    const li = document.createElement("li");
+    const handsText = alive.map(p => `${players[p]} ${HANDS[picks[p]].e}`).join("・");
+    li.textContent = `${round}回目: ${handsText} → ` + (w == null ? "あいこ" : `${winners.map(p => players[p]).join("・")} の勝ち`);
+    $("mLog").appendChild(li); $("mLogBox").hidden = false;
+
+    if (w == null) {
+      aiko = true;
+      call.className = "call draw"; call.textContent = "あいこ！";
+      sub.textContent = "同じメンバーでもう一度。";
+      actions.appendChild(button("あいこでしょ（次へ）", startRound));
+    } else if (winners.length === 1) {
+      aiko = false;
+      call.className = "call win"; call.textContent = "決着！";
+      $("mChamp").textContent = `🏆 ${players[winners[0]]}さんの優勝！`;
+      $("mChamp").hidden = false;
+      actions.appendChild(button("同じメンバーでもう一回", startMatch));
+      actions.appendChild(button("メンバーを変える", () => { show("mSetup"); $("mLogBox").hidden = true; }, true));
+    } else {
+      aiko = false;
+      alive = winners;
+      call.className = "call win"; call.textContent = `${HANDS[w].n}の勝ち！`;
+      sub.textContent = `勝ち残り: ${winners.map(p => players[p]).join("・")}。この人たちで続けます。`;
+      actions.appendChild(button("次の勝負へ", startRound));
+    }
+    actions.querySelector("button").focus();
+  }
+
+  $("mStart").addEventListener("click", startMatch);
+  $("mReady").addEventListener("click", choose);
+  document.querySelectorAll(".mpick").forEach(b => b.addEventListener("click", () => pick(+b.dataset.h)));
+  renderNames();
 })();
 </script>
 </body>
